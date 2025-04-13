@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comment Toxicity Checker</title>
+    <style>
+        :root {
+            --primary-color: #6366f1;
+            --background-dark: #0f172a;
+            --background-light: #f8fafc;
+            --text-dark: #1e293b;
+            --text-light: #f8fafc;
+            --error-color: #ef4444;
+            --success-color: #22c55e;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background: var(--background-dark);
+            color: var(--text-light);
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        .background-balls {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+
+        .ball {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(40px);
+            opacity: 0.1;
+            animation: float 15s infinite ease-in-out;
+        }
+
+        .ball:nth-child(1) {
+            width: 300px;
+            height: 300px;
+            background: var(--primary-color);
+            top: 20%;
+            left: 10%;
+            animation-delay: 0s;
+        }
+
+        .ball:nth-child(2) {
+            width: 250px;
+            height: 250px;
+            background: #8b5cf6;
+            top: 60%;
+            right: 15%;
+            animation-delay: -5s;
+        }
+
+        .ball:nth-child(3) {
+            width: 200px;
+            height: 200px;
+            background: #ec4899;
+            bottom: 10%;
+            left: 30%;
+            animation-delay: -10s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0); }
+            25% { transform: translate(20px, -20px); }
+            50% { transform: translate(-20px, 20px); }
+            75% { transform: translate(20px, 20px); }
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            animation: fadeIn 1s ease-out;
+        }
+
+        .title {
+            font-size: 3.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary-color), #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+        }
+
+        .subtitle {
+            font-size: 1.25rem;
+            color: #94a3b8;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .comment-section {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .comment-section:hover {
+            transform: translateY(-5px);
+        }
+
+        .comment-input {
+            width: 100%;
+            min-height: 150px;
+            padding: 1.5rem;
+            font-size: 1.1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0.75rem;
+            color: var(--text-light);
+            resize: vertical;
+            transition: border-color 0.3s ease;
+        }
+
+        .comment-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .submit-btn {
+            background: linear-gradient(135deg, var(--primary-color), #8b5cf6);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+            border-radius: 0.75rem;
+            cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            margin-top: 1rem;
+            width: 100%;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+        }
+
+        .comments-list {
+            margin-top: 3rem;
+        }
+
+        .comment {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            animation: slideIn 0.5s ease-out;
+            transition: transform 0.3s ease;
+        }
+
+        .comment:hover {
+            transform: translateX(5px);
+        }
+
+        .comment-text {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .comment-date {
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+
+        .toxicity-details {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--background-dark);
+            z-index: 1000;
+            padding: 2rem;
+            animation: fadeIn 0.5s ease-out;
+            overflow-y: auto;
+        }
+
+        .toxicity-content {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 1rem;
+            padding: 2rem;
+            position: relative;
+            min-height: 100vh;
+        }
+
+        .back-btn {
+            position: fixed;
+            top: 2rem;
+            left: 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: var(--text-light);
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            z-index: 1001;
+        }
+
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateX(-5px);
+        }
+
+        .toxicity-analysis {
+            margin-top: 2rem;
+        }
+
+        .toxicity-category {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            transition: transform 0.3s ease;
+        }
+
+        .toxicity-category:hover {
+            transform: translateX(5px);
+        }
+
+        .category-name {
+            font-weight: 600;
+            color: var(--error-color);
+        }
+
+        .category-score {
+            background: rgba(239, 68, 68, 0.1);
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.9rem;
+            color: var(--error-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .score-bar {
+            width: 100px;
+            height: 6px;
+            background: rgba(239, 68, 68, 0.2);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+
+        .score-fill {
+            height: 100%;
+            background: var(--error-color);
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+
+        .analysis-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--text-light);
+        }
+
+        .analysis-section {
+            margin-bottom: 2rem;
+        }
+
+        .original-comment {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .original-comment-text {
+            color: var(--error-color);
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+
+        .revision-message {
+            color: var(--text-light);
+            font-size: 1rem;
+            line-height: 1.5;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .title {
+                font-size: 2.5rem;
+            }
+
+            .comment-input {
+                min-height: 120px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="background-balls">
+        <div class="ball"></div>
+        <div class="ball"></div>
+        <div class="ball"></div>
+    </div>
+
+    <div class="container">
+        <header class="header">
+            <h1 class="title">Comment Toxicity Checker</h1>
+            <p class="subtitle">Share your thoughts while maintaining a positive and respectful environment</p>
+        </header>
+
+        <section class="comment-section">
+            <textarea 
+                id="commentInput" 
+                class="comment-input" 
+                placeholder="Share your thoughts here..."
+                rows="4"
+            ></textarea>
+            <button onclick="submitComment()" class="submit-btn">Post Comment</button>
+        </section>
+
+        <section class="comments-list" id="commentsList">
+            <!-- Comments will be dynamically added here -->
+        </section>
+    </div>
+
+    <div id="toxicityDetails" class="toxicity-details">
+        <div class="toxicity-content">
+            <button class="back-btn" onclick="hideToxicityDetails()">← Back</button>
+            <div class="toxicity-analysis" id="toxicityAnalysis">
+                <!-- Toxicity details will be shown here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const commentInput = document.getElementById('commentInput');
+        const submitButton = document.getElementById('submitComment');
+        const commentsList = document.getElementById('commentsList');
+
+        // Function to create a comment element
+        function createCommentElement(comment) {
+            const div = document.createElement('div');
+            div.className = 'comment';
+            
+            const date = new Date(comment.created_at);
+            const formattedDate = date.toLocaleString('en-US', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+
+            div.innerHTML = `
+                <div class="comment-text">${comment.text}</div>
+                <div class="comment-date">${formattedDate}</div>
+                ${comment.is_toxic ? `
+                    <div class="toxicity-indicator" style="color: var(--error-color); margin-top: 0.5rem;">
+                        <span style="display: inline-flex; align-items: center; gap: 0.5rem;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path>
+                                <path d="M15 9l-6 6"></path>
+                                <path d="M9 9l6 6"></path>
+                            </svg>
+                            Toxic Content Detected
+                        </span>
+                    </div>
+                ` : ''}
+            `;
+
+            if (comment.is_toxic) {
+                div.addEventListener('click', () => {
+                    showToxicityDetails(comment.toxicity_data || {}, comment.text);
+                });
+                div.style.cursor = 'pointer';
+            }
+
+            return div;
+        }
+
+        // Function to load comments
+        async function loadComments() {
+            try {
+                const response = await fetch('/api/comments/get/');
+                const data = await response.json();
+                commentsList.innerHTML = '';
+                
+                // Sort comments by date (newest first)
+                const sortedComments = data.comments.sort((a, b) => 
+                    new Date(b.created_at) - new Date(a.created_at)
+                );
+                
+                sortedComments.forEach(comment => {
+                    commentsList.appendChild(createCommentElement(comment));
+                });
+            } catch (error) {
+                console.error('Error loading comments:', error);
+            }
+        }
+
+        // Function to submit a comment
+        async function submitComment() {
+            const text = commentInput.value.trim();
+            if (!text) {
+                alert('Please enter a comment');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/comments/add/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({ text })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    commentInput.value = '';
+                    loadComments();
+                } else {
+                    if (data.toxicity_score !== undefined) {
+                        showToxicityDetails(data.toxicity_data || {}, text);
+                    } else {
+                        alert(data.error);
+                    }
+                }
+            } catch (error) {
+                console.error('Error submitting comment:', error);
+                alert('Error submitting comment. Please try again.');
+            }
+        }
+
+        // Helper function to get CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        // Event listeners
+        submitButton.addEventListener('click', submitComment);
+        commentInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                submitComment();
+            }
+        });
+
+        // Load comments on page load
+        loadComments();
+
+        function showToxicityDetails(toxicityData, originalComment) {
+            const detailsDiv = document.getElementById('toxicityDetails');
+            const analysisDiv = document.getElementById('toxicityAnalysis');
+            
+            // Create analysis HTML
+            let analysisHTML = `
+                <div class="analysis-section">
+                    <div class="original-comment">
+                        <div class="original-comment-text">"${originalComment}"</div>
+                        <div class="revision-message">
+                            We encourage you to revise your comment to maintain a positive and respectful environment. 
+                            Consider expressing your thoughts in a way that promotes constructive discussion.
+                        </div>
+                    </div>
+                    <div class="toxicity-categories">
+            `;
+            
+            if (toxicityData && Object.keys(toxicityData).length > 0) {
+                for (const [category, data] of Object.entries(toxicityData)) {
+                    if (data && data.is_toxic) {
+                        const categoryName = category.split('_').map(word => 
+                            word.charAt(0).toUpperCase() + word.slice(1)
+                        ).join(' ');
+                        
+                        const score = Math.round(data.score * 100);
+                        const scoreColor = score > 70 ? '#ef4444' : 
+                                         score > 40 ? '#f97316' : 
+                                         '#eab308';
+                        
+                        analysisHTML += `
+                            <div class="toxicity-category">
+                                <span class="category-name">${categoryName}</span>
+                                <div class="category-score">
+                                    <span>${score}%</span>
+                                    <div class="score-bar">
+                                        <div class="score-fill" style="width: ${score}%; background: ${scoreColor};"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+            } else {
+                analysisHTML += `
+                    <div class="toxicity-category">
+                        <span class="category-name">No toxicity detected</span>
+                    </div>
+                `;
+            }
+            
+            analysisHTML += `
+                    </div>
+                </div>
+            `;
+            
+            analysisDiv.innerHTML = analysisHTML;
+            detailsDiv.style.display = 'block';
+        }
+
+        function hideToxicityDetails() {
+            document.getElementById('toxicityDetails').style.display = 'none';
+        }
+    </script>
+</body>
+</html> 
